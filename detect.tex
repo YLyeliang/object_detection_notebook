@@ -87,5 +87,8 @@ b_x=\rho(t_x)+c_x
 \subsubsection{Drop Connect}
 \subsubsection{Drop block}
 
+\section{Refinedet}
+\subsection{Anchor}
+Refine中的anchor计算。对于每一个feature map, 首先计算其mesh grid,然后计算每个框的中心点$(x,y)=((i+0.5)/featsize,(j+0.5)/featsize)$,然后根据每个feature map对应的anchor box的大小，计算anchor的长和宽$WH_{ki}=box_k/imagesize, where k means kth feature level, i means ith grid$. e.g, 使用四个feature level, $box=[32,64,128,256], imagesize=320, featsize=[40,20,10,5], aspect ratio=[2,2,2,2]$, 那么最终生成$40*40*3+20*20*3+10*10*3+5*5*3=6375$个anchor.
 \end{document}
 
