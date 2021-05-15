@@ -73,12 +73,15 @@ Yolov4的实现过程中,anchor的生成以及label与anchor的对应关系的�
 与retinanet，rcnn系列等bbox预测不同的是，yolo模型推理得到的结果（x,y,w,h)需要经过如下公式进行编码：
 \begin{equation}
 \begin{aligned}
-b_x=\rho(t_x)+c_x
+b_x = \rho(t_x)+c_x \\
+b_y = \rho(t_y)+c_y \\
+b_w = p_we^{t_w} \\
+b_h = p_he^{t_h}
 \end{aligned}
 \end{equation}
-\begin{figure}
+\begin{figure}[htp!]
 \centering
-\includegraphics[scale=0.5]{images/yolo_bbox.png}
+\includegraphics[scale=0.3]{images/yolo_bbox.png}
 \caption{Yolo bbox prediction}
 \end{figure}
 
@@ -89,9 +92,16 @@ b_x=\rho(t_x)+c_x
 \subsubsection{Drop Connect}
 \subsubsection{Drop block}
 
+
 \section{Refinedet}
 \subsection{Anchor}
-Refine中的anchor计算。对于每一个feature map, 首先计算其mesh grid,然后计算每个框的中心点$(x,y)=((i+0.5)/featsize,(j+0.5)/featsize)$,然后根据每个feature map对应的anchor box的大小，计算anchor的长和宽$WH_{ki}=box_k/imagesize, where k means kth feature level, i means ith grid$. e.g, 使用四个feature level, $box=[32,64,128,256], imagesize=320, featsize=[40,20,10,5], aspect ratio=[2,2,2,2]$, 那么最终生成$40*40*3+20*20*3+10*10*3+5*5*3=6375$个anchor.
+Refine中的anchor计算。对于每一个feature map, 首先计算其mesh grid,然后计算每个框的中心点$(x,y)=(\frac{i+0.5}{feat\_size},\frac{j+0.5}{feat\_size})$,然后根据每个feature map对应的anchor box的大小，计算anchor的长和宽$WH_{ki}=\frac{box_k}{image\_size}$, k表示第k层特征图,i表示第i个网格. e.g, 使用四个feature level, $box=[32,64,128,256], image\_size=320, feat\_size=[40,20,10,5], aspect\_ ratio=[2,2,2,2]$, 那么最终生成$40*40*3+20*20*3+10*10*3+5*5*3=6375$个anchor.
+
+\subsection{Loss}
+计算过程分为arm和odm，其中arm预测分别输出$num\_anchor*4$和$num\_anchor*2$通道的特征图(坐标，是否包含目标)；odm预测分别输出$num\_anchor*4$和$num\_anchor*num\_classes$通道的特征图(坐标，类别数量)。每层特征图的目标数量则为$N_i*H_i*num\_anchor$。
+
+在loss计算过程中，分别计算分类loss和回归loss.其中分类使用交叉熵，回归使用smooth l1
+
 
 
 \section{Dataset}
