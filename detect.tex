@@ -30,14 +30,40 @@ Code optimization, the calculation of distance between two center points of bbox
 \subsection{CIoU loss}
 \subsection{BIoU loss}
 
-\section{bbox \& anchor}
+\section{Activation}
+\subsection{Sigmoid}
+
+\subsection{ReLU}
+
+\subsection{SiLU}
+Sigmoid Linear Unit
+\begin{align}
+\text{silu}(x) = x * \sigma(x), \text{where } \sigma(x) \text{ is the logistic sigmoid.}
+\end{align}
+\begin{figure}[htp]
+\centering
+\includegraphics[scale=1]{images/SiLU.jpg}
+\caption{The activation functions of the SiLU and the ReLU (left panel), and the dSiLU and the sigmoid unit (right panel)}
+\label{SiLU}
+\end{figure}
+\section{mmdetection}
+
+\subsection{anchor}
+mmdetection中，在retinanet, R-CNN等非ssd系列检测器的grid anchor生成中，在grid中每个anchor的坐标表示为(xmin,ymin,xmax,ymax)。anchor参数包含strides, ratios, scales, base sizes等. 其中strides为特征图的步长，ratios为宽高比，scales为anchor的缩放因子。计算过程如下:
+
+1. 根据featmap生成grid.其中grid坐标为i * featmap size for i in grid size.
+
+2. grid中每个cell根据 ratios,  scales和base sizes计算anchors,$xmin = grid_i -  basesize*scales*ratios, xmax = grid_i +basesize*scales*ratios$.
+每个anchor的形式为(xmin,ymin,xmax,ymax),且均
+
+ 具体计算方式可参考\textbf{core/anchor/anchor\_generator.py}中部分。
 
 \subsection{coder}
 在RetinaNet、SSD、Cascade R-CNN等网络中，网络预测的bbox都会进行Delta xywh编码，即将原始的(xmin, ymin, xmax, ymax)进行编码,计算相对距离，来减小回归的过拟合，提升回归的稳定性。
-\begin{equation}\textbf{•}
+\begin{equation}
 \begin{aligned}
 &\delta_x = (g_x-p_x)/p_w	   & \delta_y = (g_y - p_y)/p_h \\
-&\delta_w = \log{g_w/p_w}	&\delta_h = \log{g_h/p_h}
+&\delta_w = \log{\frac{g_w}{p_w}}	&\delta_h = \log{\frac{g_h}{p_h}}
 \end{aligned}\label{bbox_coder}
 \end{equation}
 
@@ -73,8 +99,8 @@ Yolov4的实现过程中,anchor的生成以及label与anchor的对应关系的�
 与retinanet，rcnn系列等bbox预测不同的是，yolo模型推理得到的结果（x,y,w,h)需要经过如下公式进行编码：
 \begin{equation}
 \begin{aligned}
-b_x = \rho(t_x)+c_x \\
-b_y = \rho(t_y)+c_y \\
+b_x = \sigma(t_x)+c_x \\
+b_y = \sigma(t_y)+c_y \\
 b_w = p_we^{t_w} \\
 b_h = p_he^{t_h}
 \end{aligned}
@@ -84,6 +110,10 @@ b_h = p_he^{t_h}
 \includegraphics[scale=0.3]{images/yolo_bbox.png}
 \caption{Yolo bbox prediction}
 \end{figure}
+
+\section{Yolov5}
+\subsection{Model}
+Focus结构: Focus模块中，首先将一幅图，按照隔点采样(::2,1::2)的方式，将一个图片分成四幅图，然后将这四幅图拼接到一块，形成$3*4=12$通道的特征图，再做卷积操作，这样来实现下采样和卷积操作。
 
 \section{backbone}
 \subsection{Regularization}
@@ -237,5 +267,6 @@ D' = \dfrac{A' \times r'}{L'}
 
 \bibliographystyle{IEEEtran}
 \bibliography{reference.bib}
+
 
 \end{document}
