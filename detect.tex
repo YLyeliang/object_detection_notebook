@@ -109,11 +109,26 @@ b_h = p_he^{t_h}
 \centering
 \includegraphics[scale=0.3]{images/yolo_bbox.png}
 \caption{Yolo bbox prediction}
+\label{Fig.yolo_bbox}
 \end{figure}
 
 \section{Yolov5}
 \subsection{Model}
-Focus结构: Focus模块中，首先将一幅图，按照隔点采样(::2,1::2)的方式，将一个图片分成四幅图，然后将这四幅图拼接到一块，形成$3*4=12$通道的特征图，再做卷积操作，这样来实现下采样和卷积操作。
+\textbf{Focus结构}: Focus模块中，首先将一幅图，按照隔点采样(::2,1::2)的方式，将一个图片分成四幅图，然后将这四幅图拼接到一块，形成$3*4=12$通道的特征图，再做卷积操作，这样来实现下采样和卷积操作。
+
+\textbf{C3}: CSP bottleneck with 3 convolution\cite{wang2020cspnet}.其中CSP模块如图\ref{Fig.csp}所示，采用fusion first方式，通过1x1的卷积将base layer分成均等的两部分特征图，其中part 1 和part2为hidden channels,为最终输出通道的1/2.C3中的bottleneck为标注的残差模块，使用1x1-3x3和shortcut实现。
+
+\textbf{Conv}:conv模块中包含了conv-bn-act三部分，其中act使用SiLU激活函数，在特征提取的下采样过程中，没有使用maxpool，而是采用了s=2的conv来实现。
+
+\textbf{head}:yolov5检测头与yolov3, 4系列一样，每一层输出的通道为(num classes + 5(xywh,conf) ) * num anchors, e.g 80类别，三个anchor, 则输出通道为 (80+5)*3 = 255. 对最后的预测特征图使用sigmoid归一化到0-1区间.
+
+\begin{figure}[htp!]
+\centering
+\includegraphics[scale=0.6]{images/csp_block.png}
+\caption{CSP模块}
+\label{Fig.csp}
+\end{figure}
+
 
 \section{backbone}
 \subsection{Regularization}
