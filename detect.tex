@@ -14,38 +14,235 @@
 \maketitle
 \section{Loss}
 \subsection{IoU loss}
+IoU Loss的基本计算公式为:
+\begin{align}
+\mathcal{L}_{IoU} = 1 - IoU
+\end{align}
+其中, IoU为预测和GT框的交并比，其他改进后的版本大多式在此基础上加入额外的惩罚项来有针对性地引导模型。其优点为:
 
+1. 可以反映预测检测框与真实检测框的检测效果。
+
+2. 尺度不变性，也就是对尺度不敏感（scale invariant）， 在regression任务中，判断predict box和gt的距离最直接的指标就是IoU。(满足非负性；同一性；对称性；三角不等性)。
+
+缺点：
+
+1. 如果两个框没有相交，根据定义，IoU=0，不能反映两者的距离大小（重合度）。同时因为loss=0，没有梯度回传，无法进行学习训练。
+
+2. IoU无法精确的反映两者的重合度大小。如下图所示，三种情况IoU都相等，但看得出来他们的重合度是不一样的，左边的图回归的效果最好，右边的最差。
+\begin{figure}[htp]
+\centering
+\includegraphics[scale=0.5]{images/IoU.jpg}
+\caption{相同IoU的不同情况}
+\label{Fig.IoU}
+\end{figure}
 
 \subsection{GIoU loss}
+GIoU loss中的IoU部分替换成了GIoU,其计算方式如下:
+\begin{align}
+GIoU = IoU - \frac{\left| A_c - U \right|}{\left| A_c \right|}
+\end{align}
+其中，$A_c$表示两个框的最小闭包区域面积（同时包含预测和GT的最小框），然后计算闭包区域中不属于两个框的区域所占比重。特性：
 
+1.与IoU相似，GIoU也是一种距离度量，作为损失函数的话， [公式] ,满足损失函数的基本要求；
+
+2. GIoU对scale不敏感； 
+
+3. GIoU是IoU的下界，在两个框无限重合的情况下，IoU=GIoU=1；
+
+4. IoU取值[0,1]，但GIoU有对称区间，取值范围[-1,1]。在两者重合的时候取最大值1，在两者无交集且无限远的时候取最小值-1，因此GIoU是一个非常好的距离度量指标。
+
+5. 与IoU只关注重叠区域不同，GIoU不仅关注重叠区域，还关注其他的非重合区域，能更好的反映两者的重合度。
 \subsection{DIoU loss}
-
+DIoU要比GIou更加符合目标框回归的机制，将目标与anchor之间的距离，重叠率以及尺度都考虑进去，使得目标框回归变得更加稳定，不会像IoU和GIoU一样出现训练过程中发散等问题。
+\begin{align}
+DIoU = IoU - 	\frac{\rho^2(b,b^{gt})}{c^2}
+\end{align}
+其中，$\rho()$为欧式距离计算，$b$为中心点坐标，$c$为最小闭包的对角线长度:$c^2= cw^2+ch^2$.
 Code optimization, the calculation of distance between two center points of bboxes.
+$C$包含$x$和$y$，以下公式为$x$计算部分，$y$部分同理，最后求和.
 \begin{equation}
 \begin{aligned}
 (C_1-C_2)^2)&= ((x1_{C1}+x2_{C1})/2-(x1_{C2}+x2_{C2})/2)^2 \\
 &=((x1_{C1}+x2_{C1})-(x1_{C2}+x2_{C2}))^2/4 \\
 \end{aligned}
 \end{equation}
+\begin{figure}[htp]
+\centering
+\includegraphics[scale=0.5]{images/DIoU.jpg}
+\caption{DIoU:对anchor框和目标框之间的归一化距离进行了建模}
+\label{Fig. DIoU}
+\end{figure}
+特性：
+
+1. 与GIoU loss类似，DIoU loss($ \mathcal{L}_{DIoU}= 1- DIoU$)在与目标框不重叠时，仍然可以为边界框提供移动方向。
+
+2. DIoU loss可以直接最小化两个目标框的距离，因此比GIoU loss收敛快得多。
+3. 对于包含两个框在水平方向和垂直方向上这种情况，DIoU损失可以使回归非常快，而GIoU损失几乎退化为IoU损失。
+4. DIoU还可以替换普通的IoU评价策略，应用于NMS中，使得NMS得到的结果更加合理和有效。
+
 \subsection{CIoU loss}
+论文考虑到bbox回归三要素中的长宽比还没被考虑到计算中，因此，进一步在DIoU的基础上提出了CIoU。其惩罚项如下面公式：
+\begin{align}
+\mathcal{R}_{CIoU} = \frac{\rho^2(b,b^{gt})}{c^2} + \alpha v
+\end{align}
+其中，$v$用来度量长宽比的相似性，定义为:$v=\frac{4}{\pi^2}(\arctan{\frac{w^{gt}}{h^{gt}}}- \arctan{\frac{w}{h}})^2 $， $\alpha$为权重函数，定义为:$\alpha = \frac{v}{(1-IoU)+v}$。最后，CIoU loss的梯度类似于DIoU loss，但还要考虑$v$的梯度。在长宽在 $[0,1]$ 的情况下，对$\arctan$进行求导时$w^2+h^2$的值通常很小，会导致梯度爆炸，因此在 $\frac{1}{w^2+h^2}$实现时将替换成1。在使用pytorch实现时，计算$\alpha$时使用 torch.no\_grad()来避免计算$\alpha$的损失，以此来保证合理的收敛过程。
+
 \subsection{BIoU loss}
 
 \section{Activation}
 \subsection{Sigmoid}
+Sigmoid函数，其公式如下:
+\begin{align}
+\sigma(x) = \frac{1}{1+e^{-x}} \\
+\sigma'(x) = \sigma(x) \cdot (1 - \sigma(x))
+\end{align}
+\begin{figure}[htp]
+\centering
+\includegraphics[scale=0.3]{images/activation/sigmoid.jpg}
+\caption{Sigmoid函数}
+\label{Fig.sigmoid}
+\end{figure}
+在什么情况下适合使用 Sigmoid激活函数呢？
+
+1. Sigmoid 函数的输出范围是 0 到 1。由于输出值限定在 0 到 1，因此它对每个神经元的输出进行了归一化；
+
+2. 用于将预测概率作为输出的模型。由于概率的取值范围是 0 到 1，因此 Sigmoid 函数非常合适；梯度平滑，避免「跳跃」的输出值；
+
+3. 函数是可微的。这意味着可以找到任意两个点的 sigmoid 曲线的斜率；
+
+4. 明确的预测，即非常接近 1 或 0。
+
+Sigmoid激活函数有哪些缺点？
+
+1. 倾向于梯度消失；
+
+2. 函数输出不是以 0 为中心的，这会降低权重更新的效率；
+
+3. Sigmoid 函数执行指数运算，计算机运行得较慢。
+
+\subsection{Tanh}
+双曲正切函数，其图形也是S形，公式如下:
+\begin{align}
+tanh(x) = \frac{2}{1+e^{-2x}} - 1 = \frac{\exp(x) - \exp(-x)} {\exp(x) + \exp(-x)}  \\
+tanh'(x) = 1 - tanh^2(x)
+\end{align}
+\begin{figure}[htp]
+\centering
+\includegraphics[scale=0.3]{images/activation/tanh.jpg}
+\caption{Tanh函数}
+\label{Fig.tanh}
+\end{figure}
+相比sigmoid, tanh的优势体现在:
+
+首先，当输入较大或较小时，输出几乎是平滑的并且梯度较小，这不利于权重更新。二者的区别在于输出间隔，tanh 的输出间隔为 1，并且整个函数以 0 为中心，比 sigmoid 函数更好；
+
+tanh函数的缺点同sigmoid函数的第一个缺点一样，当x很大或很小时，导数接近于 0 ，会导致梯度很小，权重更新非常缓慢，即梯度消失问题。
+
+在一般的二元分类问题中，tanh 函数用于隐藏层，而 sigmoid 函数用于输出层.
 
 \subsection{ReLU}
+ReLU的公式如下:
+\begin{equation}
+relu(x) = \begin{cases}
+	x,  x>=0 \\
+	0, x < 0
+\end{cases}
+\end{equation}
+\begin{figure}[htp]
+\centering
+\includegraphics[scale=0.4]{images/activation/relu.png}
+\caption{ReLU函数}
+\label{Fig.relu}
+\end{figure}
 
-\subsection{SiLU}
+ReLU6的公式如下，这是为了在移动端设备 float16/int8 的低精度的时候也能有很好的数值分辨率:
+\begin{align*}
+\text{ReLU6}(x) = \min(\max(0,x), 6)
+\end{align*}
+
+优点：
+输入为正时，不存在梯度饱和问题；计算速度快。
+
+缺点：
+
+Dead ReLU 问题。当输入为负时，ReLU 完全失效，在正向传播过程中，这不是问题。有些区域很敏感，有些则不敏感。但是在反向传播过程中，如果输入负数，则梯度将完全为零，sigmoid 函数和 tanh 函数也具有相同的问题；
+
+输出为 0 或正数，这意味着 ReLU 函数不是以 0 为中心的函数。
+
+\subsection{Leaky ReLU \& Parametric ReLU}
+\begin{equation}
+LReLU(x) = \begin{cases}
+	x, x>0 \\
+	ax, x<=0
+	\end{cases}
+\end{equation}
+\begin{figure}[htp]
+\centering
+\includegraphics[scale=1]{images/activation/elu.png}
+\caption{ReLU、Leaky ReLU、ELU}
+\label{Fig.elu}
+\end{figure}
+特性:
+
+Leaky ReLU 通过把 x 的非常小的线性分量给予负输入（0.01x）来调整负值的零梯度（zero gradients）问题；如果$a$是可以学习的参数，则为\textbf{PReLU}(Parametric ReLU).
+
+leak 有助于扩大 ReLU 函数的范围，通常 a 的值为 0.01 左右；
+
+Leaky ReLU 的函数范围是（负无穷到正无穷）。
+
+\subsection{ELU}
+ELU 的提出也解决了 ReLU 的问题。与 ReLU 相比，ELU 有负值，这会使激活的平均值接近零。均值激活接近于零可以使学习更快，因为它们使梯度更接近自然梯度。
+\begin{equation}
+        \text{ELU}(x) = \begin{cases}
+        x, & \text{ if } x > 0\\
+        \alpha * (\exp(x) - 1), & \text{ if } x \leq 0
+        \end{cases}
+\end{equation}
+
+ELU 具有 ReLU 的所有优点，并且：
+
+1. 没有 Dead ReLU 问题，输出的平均值接近 0，以 0 为中心；
+
+2. ELU 通过减少偏置偏移的影响，使正常梯度更接近于单位自然梯度，从而使均值向零加速学习；
+
+3. ELU 在较小的输入下会饱和至负值，从而减少前向传播的变异和信息。
+
+一个小问题是它的计算强度更高。与 Leaky ReLU 类似，尽管理论上比 ReLU 要好，但目前在实践中没有充分的证据表明 ELU 总是比 ReLU 好。
+
+
+\subsection{SiLU / Swish}
 Sigmoid Linear Unit
 \begin{align}
 \text{silu}(x) = x * \sigma(x), \text{where } \sigma(x) \text{ is the logistic sigmoid.}
 \end{align}
 \begin{figure}[htp]
 \centering
-\includegraphics[scale=1]{images/SiLU.jpg}
+\includegraphics[scale=1]{images/activation/SiLU.jpg}
 \caption{The activation functions of the SiLU and the ReLU (left panel), and the dSiLU and the sigmoid unit (right panel)}
 \label{SiLU}
 \end{figure}
+
+Swish 的设计受到了 LSTM 和高速网络中 gating 的 sigmoid 函数使用的启发。使用相同的 gating 值来简化 gating 机制，这称为 self-gating。self-gating 的优点在于它只需要简单的标量输入，而普通的 gating 则需要多个标量输入。这使得诸如 Swish 之类的 self-gated激活函数能够轻松替换以单个标量为输入的激活函数（例如 ReLU），而无需更改隐藏容量或参数数量。
+Swish激活函数的主要优点如下：
+
+「无界性」有助于防止慢速训练期间，梯度逐渐接近 0 并导致饱和；（同时，有界性也是有优势的，因为有界激活函数可以具有很强的正则化，并且较大的负输入问题也能解决);
+平滑度在优化和泛化中起了重要作用。
+
+\subsection{Hard swish}
+\begin{equation}
+        \text{Hardswish}(x) = \begin{cases}
+            0 & \text{if~} x \le -3, \\
+            x & \text{if~} x \ge +3, \\
+            x \cdot (x + 3) /6 & \text{otherwise}
+        \end{cases}
+\end{equation}
+主要是解决移动端下精度较低时的计算问题。
+\begin{figure}[htp]
+\centering
+\includegraphics[scale=0.4]{images/activation/activation.jpg}
+\caption{激活函数}
+\end{figure}
+
 \section{mmdetection}
 
 \subsection{anchor}
@@ -94,7 +291,7 @@ k=ratio^{1-iter_t/iter_{total}}
 \end{align}
 
 \section{Yolov4}
-Yolov4的实现过程中,anchor的生成以及label与anchor的对应关系的构建方法。
+Yolov4的实现过程中,anchor的生成以及label与anchor的对应关系的构建方法。如图\ref{Fig.yolo_bbox}.所示。
 \subsection{Anchor generation \& target build}
 与retinanet，rcnn系列等bbox预测不同的是，yolo模型推理得到的结果（x,y,w,h)需要经过如下公式进行编码：
 \begin{equation}
@@ -129,6 +326,10 @@ b_h = p_he^{t_h}
 \label{Fig.csp}
 \end{figure}
 
+\subsection{Loss}
+
+\subsection{Inference}
+在yolov5的推理部分中，预测pred的通道为xywh,obj\_conf, nc。首先，使用conf\_thres 对 obj\_conf 进行过滤，保留一定数目的bbox,然后对所有的类别概率进行重计算$nc\_conf = obj\_conf * nc\_conf$,
 
 \section{backbone}
 \subsection{Regularization}
