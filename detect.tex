@@ -5,6 +5,7 @@
 %\usepackage{steinmetz}
 \usepackage{graphicx}
 \usepackage{geometry}
+\usepackage[colorlinks,linkcolor=blue]{hyperref}
 \geometry{a4paper,scale=0.75}
 % left=2cm,right=2cm,top=1cm,bottom=1cm
 \title{目标检测Notebook}
@@ -12,6 +13,47 @@
 \date{\today}
 \begin{document} 
 \maketitle
+\tableofcontents
+
+\section{Base}
+\subsection{distribution}
+\subsubsection{伯努利分布}
+Bernoulli distribution，又称\textbf{两点分布}或\textbf{0-1分布}，是一个离散型概率分布。记取值为1的概率为$p$，取值为0的概率为$q=1-p$,概率质量函数为
+\begin{equation}
+f(x;p) =  p^x(1-p)^{1-x} =  \begin{cases}
+	p, \quad if\ x=1 \\
+	q = 1 - p, \quad if\ x =0
+	\end{cases}
+\end{equation}
+期望为
+\begin{align}
+E[X] = P(X=1)\cdot 1 + P(X=0) \cdot 0 = p  + 0 = p
+\end{align}
+方差
+\begin{align}
+Var(X) = \sum_{i=0}^1(x_i - E[X])^2 f(x) = (0 - p)^2(1-p) + (1-p^2)p = p(1-p) = pq
+\end{align}
+
+\subsection{cross-entropy}
+熵是表示\textbf{随机变量不确定性的度量}.设$X$是一个取有限值的离散随机变量，其概率分布为
+\begin{align}
+P(X=x_i) = p_i, i =1,2,..., n
+\end{align}
+则随机变量$X$的熵定义为
+\begin{align}
+H(X) = - \sum_{i=1}^n p_i \log{p_i}
+\end{align}
+根据定义可知，熵的大小只依赖于X的分布，而与X的取值无关，所以可以将$X$的熵记为$H(p)$，即
+\begin{align}
+H(p) = - \sum_{i=1}^n p_i \log{p_i}
+\end{align}
+熵越大，则说明随机变量的不确定性越大，因此需要更多的信息去验证真假。
+当X为二元变量时，例如1，0，则熵为
+\begin{align}
+H(p) = -p\log{p} - (1-p)\log{1-p}
+\end{align}
+当$p=0$或$p=1$时,$H(p)=0$，随机变量完全没有不确定性。当$p=0.5$时，$H(p) = 1$，熵取最大值，随机变量不确定性最大。
+
 \section{Loss}
 \subsection{IoU loss}
 IoU Loss的基本计算公式为:
@@ -424,7 +466,7 @@ Real-Time Scene Text Detection with Differentiable Binarization\cite{liao2020rea
 \end{figure}
 
 \subsubsection{Methodology}
-如图Fig. \ref{Fig.dbnet}所示，使用FPN作为backbone,在1/4阶段做预测，生成概率图($P$)和阈值图($T$)，并通过P和T来计算approximate binary map($\hat{B}$).二值化过程可表述为如下公式：
+如图Fig. \ref{Fig.dbnet}所示，使用FPN作为backbone,在1/4阶段做预测，其中"pred"由一个3x3卷积和两个反卷积组成。生成概率图($P$)和阈值图($T$)，并通过P和T来计算approximate binary map($\hat{B}$).二值化过程可表述为如下公式：
 \begin{equation}
 B_{i,j} = \left\{
 \begin{array}{lr}
@@ -448,7 +490,7 @@ l_- = -\log{(1-\dfrac{1}{1+e^{-kx}})}
 使用链式规则可以得到如下微分：
 \begin{align}
 \dfrac{\partial l_+}{\partial x} = -kf(x)e^{-kx} \\
-\dfrac{\partial l_x}{\partial x} = kf(x)
+\dfrac{\partial l_-}{\partial x} = kf(x)
 \end{align}
 
 \textbf{Label Generation}
@@ -493,6 +535,90 @@ D' = \dfrac{A' \times r'}{L'}
 
 数据增强：1）随机旋转，角度区间$(-10^\circ,10^\circ)$；2）随机裁剪；3）随机翻转。所有处理图片均resize到640x640。
 
+\subsection{CRNN}
+文本识别模型(Text recognition model). 包含特征提取，序列建模，统一框架转录。有四个特性：1）端到端；2）处理任意长度的序列；3）不受预定义词典限制；4）公开数据上取得较好效果；
+
+贡献：提出了CRNN网络（Convolutional Recurrent neural network）.1)可直接学习标签序列；2）直接从图像数据中学习有用信息，不需要手工特征和其他预处理；3）有RNN的特性，可输出标签序列；4）不受序列目标长度限制；5）效果较好；6）参数较少
+
+相关流程解析资源：\href {https://wandb.ai/authors/text-recognition-crnn-ctc/reports/Text-Recognition-With-CRNN-CTC-Network--VmlldzoxNTI5NDI}{wandb-text-recognition-crnn-ctc}
+
+\begin{figure}
+\centering
+\includegraphics[scale=0.5]{images/CRNN/CRNN.png}
+\caption{CRNN结构}
+\label{Fig.crnn}
+\end{figure}
+
+\subsubsection{Architecture}
+结构如图\ref{Fig.crnn}所示.从下往上依次为：卷积层、循环层和转录层。conv layer用于提取特征序列，recurrent layer用于对特征序列的每一帧做预测；transcription layer则将每帧预测翻译为标签序列；可以使用单个loss端到端训练。
+
+\textbf{Feature Sequence Extraction}
+
+使用标准backbone进行特征提取。所有输入图像须保持同一高度，由CNN生成特征向量序列，每个特征向量的特征序列从左至右在特征图上按列生成（即，第i个特征向量为特征图的第i列特征的拼接结果），每一列的宽度为一个像素。特征序列如图\ref{Fig.crnn_feature}所示。
+
+\begin{figure}
+\centering
+\includegraphics[scale=0.5]{images/CRNN/CRNN_feature_extract.png}
+\caption{特征序列}
+\label{Fig.crnn_feature}
+\end{figure}
+
+\textbf{Sequence Labeing}
+
+a deep bidirectional Recurrent Neural Network is built.对于特征序列$\textbf{x}=x_1,...,x_T$,recurrent layer为特征序列的每一帧$x_t$预测一个标签分布$y_t$.RNN的优点有三：1）RNN能有效发挥捕获上下文信息的能力。如图\ref{Fig.crnn_feature}所示，宽的字符需要连续的几帧来做一个完全的描述。2）RNN能将错误部分的导数反向传播给输入；3）RNN能处理任意长度的序列。
+
+LSTM，包含一个cell和三个们，输入、输出和遗忘门。与一般LSTM不同，基于图像的序列，前向和后向的上下文信息都有用且互补。因此，提出采用forward和backward lstm的方式
+
+\begin{figure}
+\centering
+\includegraphics[scale=0.5]{images/CRNN/lstm_unit.png}
+\caption{bidirectional LSTM}
+\label{Fig.bidirectional_lstm}
+\end{figure}
+
+\textbf{Transcription}
+
+转录是将由RNN生成的每帧预测转换成标签序列的过程。数学上来将，即在每帧预测条件下，找到最大概率的标签序列。实际使用中，有两种方式：lexicon-free 和lexicon-based,无词汇的和基于词汇的。
+
+\textbf{1. Probability of label sequence}
+
+采用Connectionist Temporal Classification(CTC) layer中定义的条件概率。在每帧预测$\textbf{y}=y_1,....,y_T$条件下，概率为标签序列$\textbf{l}$定义，且忽略了$\textbf{l}$中每个元素的位置。因此，在使用负对数概率作为目标函数来训练时，可以只需要图像和对应的标签序列，省去了人工标注每一个符号位置的麻烦。
+
+公式描述如下：输入序列$\textbf{y}=y_1,...y_T$,$T$为序列长度。$y_t \in \mathcal{R}^{|\mathcal{L}'|}$为集合$\mathcal{L}'=\mathcal{L}\cup$的概率分布，其中$\mathcal{L}$包含任务中的所有标签（e.g. all English characters）。一个sequence-to-sequence映射函数$\mathcal{B}$在序列$\boldsymbol{\pi} \in \mathcal{L}'^T$上定义，其中$T$为长度。$\mathcal{B}$将$\boldsymbol{\pi}_i$映射到$\textbf{l}$,通过首先移除重复的标签，然后移除'blank'（空）。比如，$\mathcal{B}$将"--hh-e-l-ll-oo--"(-表示blank)映射为"hello". 则，条件概率定义为由$\mathcal{B}$映射为$\textbf{l}$的所有$\boldsymbol{\pi}$的概率之和:
+\begin{align}
+p(\boldsymbol{l}|\textbf{y}) = \sum_{\boldsymbol{\pi}:\mathcal{B}(\boldsymbol{\pi})=\boldsymbol(l)} p(\boldsymbol{\pi}|\textbf{y}) 
+\end{align}
+其中，$p(\boldsymbol{\pi}|\textbf{y} = \prod_{t=1}^T y_{\pi_t}^t$,$y_{\pi_t}^t$为t时刻拥有标签$\pi_t$的概率。
+
+\textbf{2. Lexicon-free transcription}
+
+在这种情况下，拥有最大概率的$\textbf{l}^*$将作为预测。序列近似为$\textbf{l}^* \approx \mathcal{B}(\text{arg max}_\pi p(\boldsymbol{\pi}|\textbf{y}$.即，在每个时间$t$取最大概率的标签$\pi_t$,并将结果映射到$\textbf{l}^*$
+
+\textbf{3. Lexicon-based transcription}
+
+该模式下，每一个测试样本会绑定一个词库$\mathcal{D}$.标签序列通过选择词典中拥有最大条件概率的序列为作为识别结果。$\textbf{l}^* = arg max_{\textbf{l} \in \mathcal{D}} p(\textbf{l}|\textbf{y})$。
+但是，对于大型词库，进行穷举搜索会非常耗时。对于该问题，注意到在使用lexicon-free时其预测的标签序列与GT的编辑距离相近。因此，可以限制搜索范围在一个最近邻候选区域$\mathcal{N}_\delta(\textbf{l}')$,其中$\delta$为最大编辑距离，$\textbf{l}'$为lexicon-free下转录的序列:
+\begin{align}
+\textbf{l}^* = \text{arg max}_{\textbf{l} \in \mathcal{N}_\delta(\textbf{l}')} p(\textbf{l}| \textbf{y)}
+\end{align}
+
+候选区域$\mathcal{N}_\delta(\textbf{l}')$可使用BK树数据结构来有效寻找。其时间复杂度为$O(log|\mathcal{D}|$,其中$|\mathcal{D}|$为词库大小。
+
+\textbf{Network Training}
+
+将训练集表示为$\mathcal{X}={I_i,\textbf{l}_i}_i$,其中$I_i$为图像，$\textbf{l}_i$为标签序列。目标函数为:
+\begin{align}
+\mathcal{O} = - \sum_{I_i,\textbf{l}_i \in \mathcal{X}} \log p(\textbf{l}_i| \textbf{y}_i)
+\end{align}
+使用SGD来训练。在recurrent layer,使用Back-Propagation Through Time(BPTT)来计算误差微分。
+
+相关参数如图\ref{Fig.crnn_table}所示.
+\begin{figure}
+\centering
+\includegraphics[scale=0.5]{images/CRNN/crnn_table.png}
+\caption{模型参数}
+\label{Fig.crnn_table}
+\end{figure}
 \bibliographystyle{IEEEtran}
 \bibliography{reference.bib}
 
