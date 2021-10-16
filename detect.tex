@@ -16,6 +16,20 @@
 \tableofcontents
 
 \section{Base}
+
+\subsection{基本知识点}
+\textbf{离散型随机变量：}
+
+期望： $E(X) = \sum_{i=1}^n{x_i p_i}$
+
+方差：$D(X) = \sum_{i=1}^n{[x_i - E(x)]^2 p_i}$
+
+\textbf{连续型随机变量：}
+
+期望：$\int_{-\infty}^\infty{x f(x) dx}$
+
+方差：$\int_{-\infty}^\infty{[x-E(x)]^2 f(x) dx}$
+
 \subsection{distribution}
 \subsubsection{伯努利分布}
 Bernoulli distribution，又称\textbf{两点分布}或\textbf{0-1分布}，是一个离散型概率分布。记取值为1的概率为$p$，取值为0的概率为$q=1-p$,概率质量函数为
@@ -34,6 +48,35 @@ E[X] = P(X=1)\cdot 1 + P(X=0) \cdot 0 = p  + 0 = p
 Var(X) = \sum_{i=0}^1(x_i - E[X])^2 f(x) = (0 - p)^2(1-p) + (1-p^2)p = p(1-p) = pq
 \end{align}
 
+\subsubsection{二项分布}
+\textbf{二项分布}	(Binomial distribution) 是n个独立的是/非试验中成功次数的离散概率分布，每次试验成功率为p。单次的试验为伯努利试验，即\textbf{n=1}时，二项分布为\textbf{伯努利分布}。
+
+如果变量$X$服从参数为$n$和$p$的二项分布，则记为$X\sim b(n,p) or X\sim B(n,p)$。n次试验中正好得到k次成功的概率由概率质量函数给出：
+\begin{align}
+f(k,n,p) = Pr( X = k ) = \begin{pmatrix}
+n\\ 
+k
+\end{pmatrix} p^k (1 - p)^{n-k}
+\ where
+\begin{pmatrix}
+n\\ 
+k
+\end{pmatrix} = \frac{n!}{k!(n-k)!}
+\end{align}
+
+\begin{figure}[htp]
+\centering
+\includegraphics[scale=0.3]{images/distribution/binomial_distribution.png}
+\caption{不同参数下的二项分布}
+\label{Fig.Binomial_distribution}
+\end{figure}
+
+期望和方差为
+\begin{align}
+E(x) = np  \\
+Var(x) = np( 1-p)
+\end{align}
+
 \subsection{cross-entropy}
 熵是表示\textbf{随机变量不确定性的度量}.设$X$是一个取有限值的离散随机变量，其概率分布为
 \begin{align}
@@ -50,9 +93,62 @@ H(p) = - \sum_{i=1}^n p_i \log{p_i}
 熵越大，则说明随机变量的不确定性越大，因此需要更多的信息去验证真假。
 当X为二元变量时，例如1，0，则熵为
 \begin{align}
-H(p) = -p\log{p} - (1-p)\log{1-p}
+H(p) = -p\log{p} - (1-p)\log{(1-p)}
 \end{align}
 当$p=0$或$p=1$时,$H(p)=0$，随机变量完全没有不确定性。当$p=0.5$时，$H(p) = 1$，熵取最大值，随机变量不确定性最大。
+
+\subsection{神经网络相关知识}
+\subsubsection{卷积相关}
+参考论文:\href{https://arxiv.org/pdf/1603.07285.pdf}{A guide to convolution arithmetic for deep learning}.
+\subsubsection{感受野}
+\textbf{感受野}(Receptive field)，用来表示网络内部的不同位置的神经元对原图像的感受范围的大小。神经元感受野的值越大表示其能接触到的原始图像范围就越大，也意味着他可能蕴含更为全局、语义层次更高的特征；而值越小则表示其所包含的特征越趋向于局部和细节。因此感受野的值可以大致用来判断每一层的抽象层次。参考博客：\href{https://blog.mlreview.com/a-guide-to-receptive-field-arithmetic-for-convolutional-neural-networks-e0f514068807}{a-guide-to-receptive-field}。
+
+先介绍卷积的输出特征图尺寸计算公式
+\begin{align}
+n_{out} = \lfloor \frac{n_{in}+2p - k}{s} \rfloor + 1
+\end{align}
+其中，$n$为特征图尺寸大小，$k$为卷积核尺寸,$p$为padding尺寸，$s$为步长。
+
+感受野的可视化方式有两种，如图\ref{Fig.receptive_field}所示，左边为常用的方式，右边为固定尺寸的可视化方式。右边通过固定尺寸的方式，可以更直观地将深层特征图的特征对应到之前特征图中的感受野中心位置。
+
+
+感受野的计算公式一（常用方式）：
+\begin{align}
+RF_{l+1} = RF_l + (k_{l+1} -1) \times features\_stride_l
+\end{align}
+其中,$RF$为感受野大小，$l$表示层数，$features\_stride_l = \prod_{i=1}^l s_i$,$l=0$表示输入层，$RF_0=1$,$features\_stride_0=1$.
+
+如果包含空洞卷积的话，则公式为
+\begin{align}
+RF_{l+1} = RF_l + (k_{l+1} -1) \times features\_stride_l \times dilation_{l+1}
+\end{align}
+
+感受野的计算公式二：
+\begin{equation}
+\begin{aligned}
+& j_{out} = j_{in} * s \\
+& r_{out} = r_{in} + (k -1) * j_{in} \\
+& start_{out} = start_{in} + (\frac{k-1}{2} -p) * j_{in}
+\end{aligned}
+\end{equation}
+其中，第一行公式计算输出特征图的jump大小，即每个特征之间的间距。第二行计算输出特征图的感受野尺寸。第三行计算第一个输出特征的感受野的中心位置，等于第一个输入特征的中心点加上第一个输入特征与第一个卷积中心的距离$\frac{k-1}{2}* j_{in}$，并减取padding空间$p*j_{in}$。
+
+第一层为输入层，即图像本身,$n= image\ size, r=1,j=1, start=0.5$。图\ref{Fig.receptive_field_calc}所示为具体计算过程。
+
+\begin{figure}
+\centering
+\includegraphics[scale=0.2]{images/receptive_field.png}
+\caption{两种感受野的可视化方式}
+\label{Fig.receptive_field}
+\end{figure}
+
+\begin{figure}
+\centering
+\includegraphics[scale=0.2]{images/receptive_field_calculation.png}
+\caption{感受野的计算过程}
+\label{Fig.receptive_field_calc}
+\end{figure}
+
 
 \section{Loss}
 \subsection{IoU loss}
@@ -251,12 +347,24 @@ ELU 具有 ReLU 的所有优点，并且：
 
 一个小问题是它的计算强度更高。与 Leaky ReLU 类似，尽管理论上比 ReLU 要好，但目前在实践中没有充分的证据表明 ELU 总是比 ReLU 好。
 
+\subsection{SELU}
+SELU是在ELUde基础上引入了一个$\lambda$系数。当其中参数取为 $\lambda \approx 1.0507, \alpha \approx 1.6733$ 时，在网络权重服从标准正态分布的条件下，各层输出的分布会向标准正态分布靠拢。这种"自我标准化"的特性可以避免梯度消失和爆炸的问题。
+
+论文提出时用于feed-forward neural network中，构成 Self-Normalizing Neural Networks(SNN).其主要作用在于将神经元的值归一化到0均值单位方差范围。以便于网络更好的收敛。
+
+\begin{figure}[htp]
+\centering
+\includegraphics[scale=0.4]{images/activation/selu.png}
+\caption{SELU}
+\label{SELU}
+\end{figure}
 
 \subsection{SiLU / Swish}
 Sigmoid Linear Unit
 \begin{align}
 \text{silu}(x) = x * \sigma(x), \text{where } \sigma(x) \text{ is the logistic sigmoid.}
 \end{align}
+
 \begin{figure}[htp]
 \centering
 \includegraphics[scale=1]{images/activation/SiLU.jpg}
@@ -317,7 +425,7 @@ mmdetection中，在retinanet, R-CNN等非ssd系列检测器的grid anchor生成
 \subsection{two-stage}
 mmdetection中的二阶段检测网络，首先使用RPN-FPN网络，得到多个level的特征图，然后使用多个level的特征图生成proposals,并使用NMS进行过滤。然后利用过滤后的proposals,在对应特征图上进行ROIAlign和ROIPool.在RPN阶段，计算loss时分类loss只计算class-agnostic loss，即采样到的gt targets为正的框。
 \subsubsection{ROI Pool}
-ROI pool根据生成的proposals,(xyxy),在对应的feature maps上进行裁剪，将对应坐标内的特征图分成$s*s$块状网格，每个网络里面可能由多个值，然后使用最大池化对每个网络内的多个值进行池化，得到$s*s$的尺寸输出。在对特征图进行分块时，ROI pool使用直接取整的方式，以一个$8*8$的特征图为例，输出$2*2$的池化后的特征图。假设(xyxy)为(0,3,7,8),则proposal的原始h,w为7,5.则1)5/2 = 2.5 --> 2, 剩下的为3，则2+3 向下取整floor; 2)7/2 = 3.5 -->3， 剩下的为4，则3+4
+ROI pool根据生成的proposals,(xyxy),在对应的feature maps上进行裁剪，将对应坐标内的特征图分成$s*s$块状网格，每个网络里面可能由多个值，然后使用最大池化对每个网络内的多个值进行池化，得到$s*s$的尺寸输出。在对特征图进行分块时，ROI pool使用直接取整的方式，以一个$8*8$的特征图为例，希望输出$2*2$的池化后的特征图。假设(xyxy)为(0,3,7,8),则proposal的原始h,w为5,7. 做不到等分成4块。ROI pool的处理流程为：1)将h分成两部分，5/2 = 2.5 --> 2(向下取整), 剩下的为3，则高分成两块，一块包含两个特征点，一块包含三个特征点; 2) 7/2 = 3.5 -->3， 剩下的为4，则宽分成两块，一块包含3个特征点，一块包含4个特征点。
 \begin{figure}
 \centering
 \includegraphics[scale=0.5]{images/roipool.jpg}
@@ -619,6 +727,24 @@ p(\boldsymbol{l}|\textbf{y}) = \sum_{\boldsymbol{\pi}:\mathcal{B}(\boldsymbol{\p
 \caption{模型参数}
 \label{Fig.crnn_table}
 \end{figure}
+
+\subsection{Why you should try the Real Data for the STR}
+Why you should try the Real Data for the Scene Text Recognition.
+
+OCR用途：数字化之前的实体文本，帮助盲人阅读，车牌识别等。
+
+文本识别模型分为4步：transformation, feature extraction, sequence modelling and prediction. 本文使用TPS for transofrmation, ResNeXt作特征提取，convolutional encoder-recurrent decoder from YAMTS with 2D attention作序列建模和预测。
+
+\subsubsection{Architecture}
+使用了ASTER \cite{shi2018aster}的图像矫正方法(rectification)	,目前该模块已成为标注模块。使用ResNext作特征提取，使用 \cite{krylov2021open}的文本检测头，具体结构如图 \ref{Fig. yet_arch}所示
+\begin{figure}
+\centering
+\includegraphics[scale=0.5]{images/Yet_Another/Architecture.png}
+\caption{网络结构}
+\label{Fig. yet_arch}
+\end{figure}
+
+
 \bibliographystyle{IEEEtran}
 \bibliography{reference.bib}
 
